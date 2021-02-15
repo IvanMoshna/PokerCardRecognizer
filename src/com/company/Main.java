@@ -4,6 +4,7 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,42 +13,39 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        final String path = "G:/JavaProjects/cardsExample/src/SampleImages";
+        String path = "G:/JavaProjects/cardsExample/src/SampleImages";
 
         //путь к шаблонам
-        //TODO:разделить масти и ранги по папкам
-        Path resourcesPath = Paths.get("resources");
-        String absoluteResourcesPath = resourcesPath.toFile().getAbsolutePath();
-        String normalResourcesPath = absoluteResourcesPath.replace("\\", "/");
-        String normalSoughtPath = absoluteResourcesPath.replace("\\", "/");
+        Path resourcesRankPath = Paths.get("resources", "rank");
+        Path resourcesSuitPath = Paths.get("resources", "suit");
+        String absoluteResourcesRankPath = resourcesRankPath.toFile().getAbsolutePath();
+        String absoluteResourcesSuitPath = resourcesSuitPath.toFile().getAbsolutePath();
 
-        List<Path> resourcesPathList = getImgPathNames(normalResourcesPath);
+
+        //TODO:сделать метод для генерации мап из путей
+        String normalResourcesRankPath = absoluteResourcesRankPath.replace("\\", "/");
+        String normalResourcesSuitPath = absoluteResourcesSuitPath.replace("\\", "/");
+        String normalSoughtPath = path.replace("\\", "/");
+
+        List<Path> resourcesRankPathList = getImgPathNames(normalResourcesRankPath);
+        List<Path> resourcesSuitPathList = getImgPathNames(normalResourcesSuitPath);
         List<Path> pathList = getImgPathNames(normalSoughtPath);
 
         List<BufferedImage> bufferedImages = getImageListFromPaths(pathList);
-        Map<String, Path> templateFileMap = getTemplatePathMap(resourcesPathList);
+        Map<String, Path> templateRankFileMap = getTemplatePathMap(resourcesRankPathList);
+        Map<String, Path> templateSuitFileMap = getTemplatePathMap(resourcesSuitPathList);
 
-        List<StringBuilder> sampleStringBuilderList = getStringListFromPath(pathList);
-
+        levenshteinCompareMethod(templateRankFileMap, templateSuitFileMap, bufferedImages);
 
     }
 
     public static List<Path> getImgPathNames(String path) {
-       /* File dir = new File(path);
-        List<String> imgNames = new ArrayList<>();
-        if (dir.isDirectory()) {
-            for (File item : dir.listFiles()) {
-                imgNames.add(item.getName());
-            }
-        }*/
         List<Path> pathToFileList = new ArrayList<>();
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths.filter(Files::isRegularFile).forEach(pathToFileList::add);
@@ -95,7 +93,7 @@ public class Main {
         return resultMap;
     }
 
-    private static List<StringBuilder> getStringListFromPath(List<Path> pathList) throws IOException {
+    /*private static List<StringBuilder> getStringListFromPath(List<Path> pathList) throws IOException {
         List<StringBuilder> resultList = new ArrayList<>();
         for (Path p:pathList) {
             BufferedImage image = ImageIO.read(new File(String.valueOf(p)));
@@ -114,14 +112,13 @@ public class Main {
             resultList.add(binaryString);
         }
         return resultList;
-    }
+    }*/
     //TODO:объеденить методы
     private static StringBuilder getStringFromImage(File file) throws IOException {
         BufferedImage image = ImageIO.read(file);
         BufferedImage symbol = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_BYTE_BINARY);
         Graphics2D g = symbol.createGraphics();
         g.drawImage(image,0,0, null);
-
 
         int height = image.getHeight();
         int width = image.getWidth();
@@ -135,58 +132,56 @@ public class Main {
         return binaryString;
     }
 
-    public static void levenshteinCompareMethod(Map<String, Path> templateImageMap,
+    public static void levenshteinCompareMethod(Map<String, Path> templateRankImageMap,
+                                                Map<String, Path> templateSuitImageMap,
                                           List<BufferedImage> sampleImageList) throws IOException {
         for (int i = 0; i < sampleImageList.size(); i++) {
             BufferedImage identifyImage = sampleImageList.get(i);
             String[] foundRank = {"?", "?", "?", "?", "?"};
             String[] foundSuits = {"?", "?", "?", "?", "?"};
 
+
+
             for (int cardNum = 0; cardNum < Constants.CARDS_POS_X.length; cardNum++) {
                 //обрабатываем ранг
                 int min = Integer.MAX_VALUE;
-                for (Map.Entry<String, Path> entry : templateImageMap.entrySet()) {
+                for (Map.Entry<String, Path> entry : templateRankImageMap.entrySet()) {
                     String rankName = entry.getKey();
                     Path templatePath = entry.getValue();
                     File templateFile = new File(String.valueOf(templatePath));
                     BufferedImage templateImage = readImageFile(templatePath);
 
-                    int offset = 11;
-
-                    //TODO:ОПТИМИЗАЦИЯ
                     File cutFileImage = getSubFileFromImage(identifyImage, templateImage,
-                            Constants.CARDS_POS_X[cardNum] + offset,
+                            Constants.CARDS_POS_X[cardNum],
                             Constants.RANK_POS_Y);
                     StringBuilder templateStringFile = getStringFromImage(templateFile);
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
-                    if (levenshtein <= min && levenshtein <=60) {
+                    if (levenshtein <= min && levenshtein <= 60) {
                         min = levenshtein;
                         foundRank[cardNum] = rankName;
                     }
 
                 }
                 //TODO: МАСТИ
-                for (Map.Entry<String, Path> entry : templateImageMap.entrySet()) {
-
+                for (Map.Entry<String, Path> entry : templateSuitImageMap.entrySet()) {
                     String suitName = entry.getKey();
                     Path templatePath = entry.getValue();
                     File templateFile = new File(String.valueOf(templatePath));
                     BufferedImage templateImage = readImageFile(templatePath);
 
                     File cutFileImage = getSubFileFromImage(identifyImage, templateImage,
-                            Constants.CARDS_POS_X[cardNum]  + Constants.SUIT_OFFSET_X,
+                            Constants.CARDS_POS_X[cardNum] + Constants.SUIT_OFFSET_X,
                             Constants.SUIT_POS_Y);
 
                     StringBuilder templateStringFile = getStringFromImage(templateFile);
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
-                    min = 30;
+                    min = 50;
                     if (levenshtein <= min) {
                         foundSuits[cardNum] = suitName;
                     }
                 }
-
             }
             //TODO:сделать нормальный вывод
 
@@ -226,14 +221,15 @@ public class Main {
     }
 
     public static File getSubFileFromImage(BufferedImage identifyImage,
-                                           BufferedImage templateImage, int offsetX, int positionY) throws IOException {
-        BufferedImage carvedImage = identifyImage.getSubimage(offsetX, positionY,
+                                           BufferedImage templateImage,
+                                           int offsetX, int positionY) throws IOException {
+        BufferedImage cuttedImage = identifyImage.getSubimage(offsetX, positionY,
                 templateImage.getWidth(), templateImage.getHeight());
 
-        carvedImage = ImageService.getBinarizedImage(carvedImage);
+        cuttedImage = ImageService.RGBtoBinarize(cuttedImage);
 
         File outputStream = new File("compare.png");
-        ImageIO.write(carvedImage, "png", outputStream);
+        ImageIO.write(cuttedImage, "png", outputStream);
         return outputStream;
     }
 
