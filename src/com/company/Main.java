@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
         Scanner in = new Scanner(System.in);
         System.out.print("Enter name of directory: ");
@@ -27,11 +27,15 @@ public class Main {
         String absoluteResourcesSuitPath = resourcesSuitPath.toFile().getAbsolutePath();
         String normalSoughtPath = path.replace("\\", "/");
         List<Path> pathList = getImgPathNames(normalSoughtPath);
-        List<BufferedImage> bufferedImages = getImageListFromPaths(pathList);
-        Map<String, Path> templateRankFileMap = generateMapFromPathList(absoluteResourcesRankPath);
-        Map<String, Path> templateSuitFileMap = generateMapFromPathList(absoluteResourcesSuitPath);
+        //List<BufferedImage> bufferedImages = getImageListFromPaths(pathList);
+       /* Map<String, Path> templateRankFileMap = generateMapFromPathList(absoluteResourcesRankPath);
+        Map<String, Path> templateSuitFileMap = generateMapFromPathList(absoluteResourcesSuitPath);*/
 
-        levenshteinCompareMethod(templateRankFileMap, templateSuitFileMap, bufferedImages);
+        List<TempleCard> templeCardRankList = templeCardList(absoluteResourcesRankPath);
+        List<TempleCard> templeCardSuitList = templeCardList(absoluteResourcesSuitPath);
+
+        //levenshteinCompareMethod(templateRankFileMap, templateSuitFileMap, pathList);
+        levenshteinCompareMethod(templeCardRankList, templeCardSuitList, pathList);
     }
 
     public static Map<String, Path> generateMapFromPathList(String pathDir) {
@@ -61,6 +65,23 @@ public class Main {
             e.printStackTrace();
         }
         return imageSource;
+    }
+
+    public static List<TempleCard> templeCardList(String path) throws IOException {
+        List<TempleCard> resultList = new ArrayList<>();
+        List<Path> pathToFileList = new ArrayList<>();
+        try (Stream<Path> paths = Files.walk(Paths.get(path))) {
+            paths.filter(Files::isRegularFile).forEach(pathToFileList::add);
+        } catch (IOException e) {
+            System.err.println("Wrong path or incorrect access : ");
+            e.printStackTrace();
+        }
+        for (Path p: pathToFileList) {
+            resultList.add(new TempleCard(p.getFileName().toString().split("\\.")[0],
+                    getStringFromImage(ImageIO.read(p.toFile())),
+                    ImageIO.read(p.toFile())));
+        }
+        return resultList;
     }
 
     public static List<BufferedImage> getImageListFromPaths(List<Path> pathList) {
@@ -97,37 +118,41 @@ public class Main {
         int width = image.getWidth();
         short whiteBg = -1;
         StringBuilder binaryString = new StringBuilder();
-        for (short y = 1; y < height; y++)
-            for (short x = 1; x < width; x++) {
+        for (int y = 1; y < height; y++) {
+            for (int x = 1; x < width; x++) {
                 int rgb = symbol.getRGB(x, y);
                 binaryString.append(rgb == whiteBg ? " " : "*");
             }
+        }
         return binaryString;
     }
 
-    public static void levenshteinCompareMethod(Map<String, Path> templateRankImageMap,
-                                                Map<String, Path> templateSuitImageMap,
-                                          List<BufferedImage> sampleImageList) {
+    public static void levenshteinCompareMethod(/*Map<String, Path> templateRankImageMap,
+                                                Map<String, Path> templateSuitImageMap,*/
+                                          /*List<BufferedImage> sampleImageList*/
+                                                List<TempleCard> templateRankCardList,
+                                                List<TempleCard> templateSuitCardList,
+                                                List<Path> samplePathList) throws IOException {
 
         int notFoundCardsCount = 0;
         int foundCardsCount = 0;
-        for (int i = 0; i < sampleImageList.size(); i++) {
-            BufferedImage identifyImage = sampleImageList.get(i);
+        for (int i = 0; i < samplePathList.size(); i++) {
+            BufferedImage identifyImage = ImageIO.read(samplePathList.get(i).toFile());
             String[] foundRank = {"?", "?", "?", "?", "?"};
             String[] foundSuits = {"?", "?", "?", "?", "?"};
 
             for (int cardNum = 0; cardNum < Constants.CARDS_POS_X.length; cardNum++) {
-                //обрабатываем ранг
                 int min = Integer.MAX_VALUE;
-                for (Map.Entry<String, Path> entry : templateRankImageMap.entrySet()) {
-                    String rankName = entry.getKey();
-                    Path templatePath = entry.getValue();
-                    BufferedImage templateImage = readImageFile(templatePath);
+                //for (Map.Entry<String, Path> entry : templateRankImageMap.entrySet()) {
+                for (TempleCard card:templateRankCardList) {
+                    String rankName = card.getName();
+                    //Path templatePath = entry.getValue();
+                    BufferedImage templateImage = card.getBufferedImage();
 
                     BufferedImage cutFileImage = getSubFileFromImage(identifyImage, templateImage,
                             Constants.CARDS_POS_X[cardNum],
                             Constants.RANK_POS_Y);
-                    StringBuilder templateStringFile = getStringFromImage(templateImage);
+                    StringBuilder templateStringFile = card.getStringForm();
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
                     if (levenshtein <= min && levenshtein <= 60) {
@@ -135,16 +160,18 @@ public class Main {
                         foundRank[cardNum] = rankName;
                     }
                 }
+                //for (Map.Entry<String, Path> entry : templateSuitImageMap.entrySet()) {
+                for (TempleCard card: templateSuitCardList) {
 
-                for (Map.Entry<String, Path> entry : templateSuitImageMap.entrySet()) {
-                    String suitName = entry.getKey();
-                    Path templatePath = entry.getValue();
-                    BufferedImage templateImage = readImageFile(templatePath);
+
+                    String suitName = card.getName();
+                    //Path templatePath = entry.getValue();
+                    BufferedImage templateImage = card.getBufferedImage();
 
                     BufferedImage cutFileImage = getSubFileFromImage(identifyImage, templateImage,
                             Constants.CARDS_POS_X[cardNum] + Constants.SUIT_OFFSET_X,
                             Constants.SUIT_POS_Y);
-                    StringBuilder templateStringFile = getStringFromImage(templateImage);
+                    StringBuilder templateStringFile = card.getStringForm();
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
                     min = 70;
@@ -154,6 +181,7 @@ public class Main {
                 }
             }
 
+            System.out.print(samplePathList.get(i).getFileName() + " - ");
             for(int j = 0; j<foundRank.length; j++)
             {
                 String s = foundRank[j]+foundSuits[j];
@@ -176,13 +204,13 @@ public class Main {
         int[] Di = new int[str2.length() + 1];
 
         for (int j = 0; j <= str2.length(); j++) {
-            Di[j] = j; // (i == 0)
+            Di[j] = j;
         }
 
         for (int i = 1; i <= str1.length(); i++) {
             System.arraycopy(Di, 0, Di_1, 0, Di_1.length);
 
-            Di[0] = i; // (j == 0)
+            Di[0] = i;
             for (int j = 1; j <= str2.length(); j++) {
                 int cost = (str1.charAt(i - 1) != str2.charAt(j - 1)) ? 1 : 0;
                 Di[j] = min(
@@ -203,11 +231,11 @@ public class Main {
     public static BufferedImage getSubFileFromImage(BufferedImage identifyImage,
                                            BufferedImage templateImage,
                                            int offsetX, int positionY) {
-        BufferedImage cuttedImage = identifyImage.getSubimage(offsetX, positionY,
+        BufferedImage cutImage = identifyImage.getSubimage(offsetX, positionY,
                 templateImage.getWidth(), templateImage.getHeight());
 
-        cuttedImage = RGBtoBinarize(cuttedImage);
-        return cuttedImage;
+        cutImage = RGBtoBinarize(cutImage);
+        return cutImage;
     }
 
     public static BufferedImage RGBtoBinarize(BufferedImage img) {
