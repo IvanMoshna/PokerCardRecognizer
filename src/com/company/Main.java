@@ -3,46 +3,42 @@ package com.company;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
 
-        String path = "G:/JavaProjects/cardsExample/src/SampleImages";
+        Scanner in = new Scanner(System.in);
+        System.out.print("Enter name of directory: ");
+        String path = in.nextLine();
+        in.close();
 
         //путь к шаблонам
         Path resourcesRankPath = Paths.get("resources", "rank");
         Path resourcesSuitPath = Paths.get("resources", "suit");
         String absoluteResourcesRankPath = resourcesRankPath.toFile().getAbsolutePath();
         String absoluteResourcesSuitPath = resourcesSuitPath.toFile().getAbsolutePath();
-
-
-        //TODO:сделать метод для генерации мап из путей
-        String normalResourcesRankPath = absoluteResourcesRankPath.replace("\\", "/");
-        String normalResourcesSuitPath = absoluteResourcesSuitPath.replace("\\", "/");
         String normalSoughtPath = path.replace("\\", "/");
-
-        List<Path> resourcesRankPathList = getImgPathNames(normalResourcesRankPath);
-        List<Path> resourcesSuitPathList = getImgPathNames(normalResourcesSuitPath);
         List<Path> pathList = getImgPathNames(normalSoughtPath);
-
         List<BufferedImage> bufferedImages = getImageListFromPaths(pathList);
-        Map<String, Path> templateRankFileMap = getTemplatePathMap(resourcesRankPathList);
-        Map<String, Path> templateSuitFileMap = getTemplatePathMap(resourcesSuitPathList);
+        Map<String, Path> templateRankFileMap = generateMapFromPathList(absoluteResourcesRankPath);
+        Map<String, Path> templateSuitFileMap = generateMapFromPathList(absoluteResourcesSuitPath);
 
         levenshteinCompareMethod(templateRankFileMap, templateSuitFileMap, bufferedImages);
+    }
 
+    public static Map<String, Path> generateMapFromPathList(String pathDir) {
+        String normalDirPath = pathDir.replace("\\", "/");
+        List<Path> pathList = getImgPathNames(normalDirPath);
+        Map<String, Path> resultMap = getTemplatePathMap(pathList);
+        return resultMap;
     }
 
     public static List<Path> getImgPathNames(String path) {
@@ -86,37 +82,14 @@ public class Main {
 
         Map<String, Path> resultMap = new HashMap<>();
         for (Path p:paths) {
-            //TODO:придумать как делать без создания файла
-            File f = new File(p.toString());
-            resultMap.put(f.getName().split("\\.")[0] , p);
+            resultMap.put(p.getFileName().toString().split("\\.")[0] , p);
         }
         return resultMap;
     }
 
-    /*private static List<StringBuilder> getStringListFromPath(List<Path> pathList) throws IOException {
-        List<StringBuilder> resultList = new ArrayList<>();
-        for (Path p:pathList) {
-            BufferedImage image = ImageIO.read(new File(String.valueOf(p)));
-            BufferedImage symbol = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_BYTE_BINARY);
-            Graphics2D g = symbol.createGraphics();
-            g.drawImage(image, 0, 0, null);
-            int height = image.getHeight();
-            int width = image.getWidth();
-            short whiteBg = -1;
-            StringBuilder binaryString = new StringBuilder();
-            for (short y = 1; y < height; y++)
-                for (short x = 1; x < width; x++) {
-                    int rgb = symbol.getRGB(x, y);
-                    binaryString.append(rgb == whiteBg ? " " : "*");
-                }
-            resultList.add(binaryString);
-        }
-        return resultList;
-    }*/
-    //TODO:объеденить методы
-    private static StringBuilder getStringFromImage(File file) throws IOException {
-        BufferedImage image = ImageIO.read(file);
-        BufferedImage symbol = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_BYTE_BINARY);
+    private static StringBuilder getStringFromImage(BufferedImage image) {
+        BufferedImage symbol = new BufferedImage(image.getWidth(), image.getHeight(),
+                BufferedImage.TYPE_BYTE_BINARY);
         Graphics2D g = symbol.createGraphics();
         g.drawImage(image,0,0, null);
 
@@ -134,13 +107,14 @@ public class Main {
 
     public static void levenshteinCompareMethod(Map<String, Path> templateRankImageMap,
                                                 Map<String, Path> templateSuitImageMap,
-                                          List<BufferedImage> sampleImageList) throws IOException {
+                                          List<BufferedImage> sampleImageList) {
+
+        int notFoundCardsCount = 0;
+        int foundCardsCount = 0;
         for (int i = 0; i < sampleImageList.size(); i++) {
             BufferedImage identifyImage = sampleImageList.get(i);
             String[] foundRank = {"?", "?", "?", "?", "?"};
             String[] foundSuits = {"?", "?", "?", "?", "?"};
-
-
 
             for (int cardNum = 0; cardNum < Constants.CARDS_POS_X.length; cardNum++) {
                 //обрабатываем ранг
@@ -148,49 +122,54 @@ public class Main {
                 for (Map.Entry<String, Path> entry : templateRankImageMap.entrySet()) {
                     String rankName = entry.getKey();
                     Path templatePath = entry.getValue();
-                    File templateFile = new File(String.valueOf(templatePath));
                     BufferedImage templateImage = readImageFile(templatePath);
 
-                    File cutFileImage = getSubFileFromImage(identifyImage, templateImage,
+                    BufferedImage cutFileImage = getSubFileFromImage(identifyImage, templateImage,
                             Constants.CARDS_POS_X[cardNum],
                             Constants.RANK_POS_Y);
-                    StringBuilder templateStringFile = getStringFromImage(templateFile);
+                    StringBuilder templateStringFile = getStringFromImage(templateImage);
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
                     if (levenshtein <= min && levenshtein <= 60) {
                         min = levenshtein;
                         foundRank[cardNum] = rankName;
                     }
-
                 }
-                //TODO: МАСТИ
+
                 for (Map.Entry<String, Path> entry : templateSuitImageMap.entrySet()) {
                     String suitName = entry.getKey();
                     Path templatePath = entry.getValue();
-                    File templateFile = new File(String.valueOf(templatePath));
                     BufferedImage templateImage = readImageFile(templatePath);
 
-                    File cutFileImage = getSubFileFromImage(identifyImage, templateImage,
+                    BufferedImage cutFileImage = getSubFileFromImage(identifyImage, templateImage,
                             Constants.CARDS_POS_X[cardNum] + Constants.SUIT_OFFSET_X,
                             Constants.SUIT_POS_Y);
-
-                    StringBuilder templateStringFile = getStringFromImage(templateFile);
+                    StringBuilder templateStringFile = getStringFromImage(templateImage);
                     StringBuilder cutStringFile = getStringFromImage(cutFileImage);
                     int levenshtein = levensteinMin(cutStringFile.toString(), templateStringFile.toString());
-                    min = 50;
+                    min = 70;
                     if (levenshtein <= min) {
                         foundSuits[cardNum] = suitName;
                     }
                 }
             }
-            //TODO:сделать нормальный вывод
 
             for(int j = 0; j<foundRank.length; j++)
             {
-                System.out.print(foundRank[j]+""+foundSuits[j]);
+                String s = foundRank[j]+foundSuits[j];
+                String str = s.replace("??", "");
+                System.out.print(str);
+                if(str.contains("?")) {
+                    notFoundCardsCount++;
+                } else {
+                    foundCardsCount++;
+                }
             }
             System.out.println();
         }
+        System.out.println("Identified = " + foundCardsCount);
+        System.out.println("Unidentified = " + notFoundCardsCount);
+
     }
     public static int levensteinMin( String str1, String str2) {
         int[] Di_1 = new int[str2.length() + 1];
@@ -217,20 +196,47 @@ public class Main {
     }
 
     private static int min(int n1, int n2, int n3) {
+
         return Math.min(Math.min(n1, n2), n3);
     }
 
-    public static File getSubFileFromImage(BufferedImage identifyImage,
+    public static BufferedImage getSubFileFromImage(BufferedImage identifyImage,
                                            BufferedImage templateImage,
-                                           int offsetX, int positionY) throws IOException {
+                                           int offsetX, int positionY) {
         BufferedImage cuttedImage = identifyImage.getSubimage(offsetX, positionY,
                 templateImage.getWidth(), templateImage.getHeight());
 
-        cuttedImage = ImageService.RGBtoBinarize(cuttedImage);
-
-        File outputStream = new File("compare.png");
-        ImageIO.write(cuttedImage, "png", outputStream);
-        return outputStream;
+        cuttedImage = RGBtoBinarize(cuttedImage);
+        return cuttedImage;
     }
 
+    public static BufferedImage RGBtoBinarize(BufferedImage img) {
+        int w = img.getWidth();
+        int h = img.getHeight();
+        for(int i=0;i<w;i++)
+        {
+            for(int j=0;j<h;j++)
+            {
+                //Get RGB Value
+                int val = img.getRGB(i, j);
+                //Convert to three separate channels
+                int r = (0x00ff0000 & val) >> 16;
+                int g = (0x0000ff00 & val) >> 8;
+                int b = (0x000000ff & val);
+                int m=(r+g+b);
+                //(255+255+255)/2 =283 middle of dark and light
+                //383
+                if(m>=355)
+                {
+                    // for light color it set white
+                    img.setRGB(i, j, Color.WHITE.getRGB());
+                }
+                else{
+                    // for dark color it will set black
+                    img.setRGB(i, j, 0);
+                }
+            }
+        }
+        return img;
+    }
 }

@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="PokerCardRecognizer:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/PokerCardRecognizer_jar</output-path>
+    <root id="archive" name="PokerCardRecognizer.jar">
+      <element id="module-output" name="PokerCardRecognizer" />
+    </root>
+  </artifact>
+</component>

@@ -2,11 +2,10 @@ package com.company;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.stream.IntStream;
 
 public class ImageService {
 
-    public static BufferedImage RGBtoBinarize(BufferedImage img) {
+    public static BufferedImage RGBtoBinarizeeee(BufferedImage img) {
         int w = img.getWidth();
         int h = img.getHeight();
         for(int i=0;i<w;i++)
